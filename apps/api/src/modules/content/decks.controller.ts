@@ -6,6 +6,7 @@ import {
   cards,
   jobs,
 } from "../../infra/index.js";
+import { ensureBucket } from "../../infra/storage.js";
 import {
   validatePdfUploadMetadata,
   assertPdfSizeWithinLimit,
@@ -38,6 +39,7 @@ export async function createDeckHandler(request: FastifyRequest, reply: FastifyR
 
     const user = requireUser(request);
     const storageKey = buildSourceStorageKey(user.id);
+    await ensureBucket(); // auto-create bucket in dev if it doesn't exist
     await clients.putObject(storageKey, buffer, mimetype);
 
     const source = await sources.create(user.id, filename, storageKey);
