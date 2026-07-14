@@ -7,6 +7,7 @@
  * internals under src/modules/<name>/ without touching this bootstrap.
  */
 import Fastify from "fastify";
+import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
 import websocket from "@fastify/websocket";
@@ -19,6 +20,23 @@ import { startLifecycleScheduler } from "./modules/content/lifecycle.js";
 export async function buildServer() {
   const app = Fastify({
     logger: { level: config.NODE_ENV === "development" ? "info" : "warn" },
+  });
+
+  // Allow the local frontend dev server to make credentialed requests.
+  await app.register(cors, {
+    origin: (origin, cb) => {
+      const allowed = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+      ];
+      if (!origin || allowed.includes(origin)) {
+        cb(null, true);
+      } else {
+        cb(new Error("CORS: origin not allowed"), false);
+      }
+    },
+    credentials: true,
   });
 
   await app.register(cookie, { secret: config.SESSION_COOKIE_SECRET });

@@ -15,6 +15,7 @@
     "dev:api": "npm --workspace apps/api run dev",
     "dev:worker": "cd apps/ai-worker && uvicorn app.main:app --reload --port 8000",
     "dev:queue": "cd apps/ai-worker && ./venv/bin/python -m app.worker",
+    "dev:web": "npx -y serve apps/web -p 5173 --cors",
     "build": "npm --workspace packages/domain run build && npm --workspace apps/api run build",
     "test": "npm --workspace apps/api run test",
     "lint": "npm --workspace apps/api run lint",
