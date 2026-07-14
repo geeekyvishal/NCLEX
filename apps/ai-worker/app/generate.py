@@ -40,22 +40,13 @@ def draft_cards_for_chunk(
     client: LLMClient | None = None,
     max_cards: int = 4,
 ) -> list[DraftCard]:
-    """Draft flashcards for one chunk. Returns [] on model or parse failure.
-
-    A single chunk that fails to generate must not fail the whole document, so
-    errors are swallowed and logged - the pipeline continues with the rest.
-    """
+    """Draft flashcards for one chunk. Raises LLMError or other exceptions on failure."""
     llm = client or default_client
     user = (
         f"Passage topic hint: {chunk.topic or 'unspecified'}\n\n"
         f"Passage:\n{chunk.text}"
     )
-    try:
-        data = llm.complete_json(settings.generation_model, _SYSTEM, user, max_tokens=1536)
-    except Exception as exc:  # noqa: BLE001 - one chunk failing is not fatal
-        logger.warning("Generation failed for chunk %s: %s", chunk.id, exc)
-        return []
-
+    data = llm.complete_json(settings.generation_model, _SYSTEM, user, max_tokens=1536)
     return _coerce_cards(data, chunk, max_cards)
 
 
@@ -66,8 +57,20 @@ def generate(
 ) -> list[DraftCard]:
     """Draft cards across all chunks. Stage entrypoint."""
     drafts: list[DraftCard] = []
+    last_exc: Exception | None = None
+    
     for chunk in chunks:
-        drafts.extend(draft_cards_for_chunk(chunk, client=client))
+        try:
+            # Inline the draft_cards_for_chunk logic slightly or wrap it to capture the exception
+            cards = draft_cards_for_chunk(chunk, client=client)
+            drafts.extend(cards)
+        except Exception as exc:
+            last_exc = exc
+            logger.warning("Generation failed for chunk %s: %s", chunk.id, exc)
+
+    if not drafts and last_exc is not None:
+        raise RuntimeError(f"Card generation failed for all chunks. Last error: {last_exc}") from last_exc
+
     logger.info("Generated %d draft cards from %d chunks", len(drafts), len(chunks))
     return drafts
 

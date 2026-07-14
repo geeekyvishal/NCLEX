@@ -42,8 +42,9 @@ export async function ensureBucket(): Promise<void> {
   const s3 = getS3();
   try {
     await s3.send(new HeadBucketCommand({ Bucket: config.S3_BUCKET }));
-  } catch (e: any) {
-    if (e.name === "NotFound" || e.$metadata?.httpStatusCode === 404) {
+  } catch (e: unknown) {
+    const err = e as { name?: string; $metadata?: { httpStatusCode?: number } };
+    if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {
       await s3.send(new CreateBucketCommand({ Bucket: config.S3_BUCKET }));
     } else {
       throw e;

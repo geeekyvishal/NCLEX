@@ -139,7 +139,11 @@ class LLMClient:
                     exc,
                 )
                 if attempt == 0:
-                    time.sleep(0.5)  # brief backoff before the single retry
+                    # Respect the provider's retry-after hint if present.
+                    # Gemini embeds it as retryDelay in the error details.
+                    delay = _parse_retry_delay(exc)
+                    logger.info("Waiting %.1fs before retry (provider requested %s)...", delay, delay)
+                    time.sleep(delay)
 
         raise LLMError(f"LLM call failed after retry: {last_error}") from last_error
 
@@ -232,6 +236,26 @@ def _first_json_span(text: str) -> str | None:
                         return text[i : j + 1]
             return None
     return None
+
+
+def _parse_retry_delay(exc: Exception, default: float = 2.0, maximum: float = 60.0) -> float:
+    """Extract the provider's requested retry delay from a rate-limit error.
+
+    Gemini embeds retryDelay (e.g. '16s') in the error details.
+    OpenRouter and Anthropic expose it via the Retry-After header captured
+    in the exception body. Falls back to `default` if none is found.
+    """
+    import re
+    text = str(exc)
+    # Match patterns like "retryDelay: '16s'" or "retry_delay: 20s"
+    m = re.search(r"retry.?delay['\"]?:\s*['\"]?(\d+(?:\.\d+)?)s", text, re.IGNORECASE)
+    if m:
+        return min(float(m.group(1)), maximum)
+    # Match plain integer seconds mentioned near "retry" keyword
+    m = re.search(r"retry.*?(\d+)\s*s", text, re.IGNORECASE)
+    if m:
+        return min(float(m.group(1)), maximum)
+    return default
 
 
 # A shared default client for the pipeline. Tests pass their own instance.
