@@ -1,0 +1,22 @@
+{
+  "name": "nclex-app",
+  "private": true,
+  "version": "0.1.0",
+  "description": "NCLEX AI flashcard and Next-Gen practice app - backend monorepo",
+  "workspaces": [
+    "apps/api",
+    "packages/domain"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:api": "npm --workspace apps/api run dev",
+    "dev:worker": "cd apps/ai-worker && uvicorn app.main:app --reload --port 8000",
+    "build": "npm --workspace packages/domain run build && npm --workspace apps/api run build",
+    "test": "npm --workspace apps/api run test",
+    "lint": "npm --workspace apps/api run lint",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down"
+  }
+}

@@ -1,0 +1,26 @@
+/**
+ * Environment configuration, parsed and validated once at boot.
+ * Every module reads config from here rather than touching process.env.
+ */
+import { z } from "zod";
+
+const Env = z.object({
+  NODE_ENV: z.string().default("development"),
+  API_PORT: z.coerce.number().default(3001),
+  DATABASE_URL: z.string(),
+  REDIS_URL: z.string(),
+  SESSION_COOKIE_SECRET: z.string().min(32),
+  S3_ENDPOINT: z.string(),
+  S3_REGION: z.string().default("us-east-1"),
+  S3_BUCKET: z.string(),
+  S3_ACCESS_KEY: z.string(),
+  S3_SECRET_KEY: z.string(),
+});
+
+export const config = Env.parse(process.env);
+export type Config = z.infer<typeof Env>;
+
+/** Redis key/channel the AI worker publishes job progress to. */
+export const JOB_PROGRESS_CHANNEL = "job:progress";
+/** Redis list the API pushes generation jobs onto for the worker to consume. */
+export const JOB_QUEUE_KEY = "job:generation:queue";
