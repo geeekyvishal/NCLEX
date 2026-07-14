@@ -126,6 +126,8 @@ export const GenerationJobRequest = z.object({
   storageKey: z.string(),
   /** Soft cap - the ranker keeps "the cards that matter, not 200 to delete". */
   targetCardCount: z.number().int().positive().default(25),
+  prompt: z.string().optional(),
+  cardId: z.string().uuid().optional(),
 });
 export type GenerationJobRequest = z.infer<typeof GenerationJobRequest>;
 

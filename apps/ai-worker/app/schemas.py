@@ -78,6 +78,8 @@ class GenerationJobRequest(_CamelModel):
     storage_key: str
     # Soft cap - the ranker keeps "the cards that matter, not 200 to delete".
     target_card_count: int = 25
+    prompt: str | None = None
+    card_id: str | None = None
 
 
 class JobProgress(_CamelModel):

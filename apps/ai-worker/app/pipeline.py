@@ -99,6 +99,11 @@ async def run_pipeline(
     counts = {}
 
     try:
+        if request.prompt is not None:
+            from .regenerate import run_regeneration
+            await run_regeneration(request, db_conn, redis_client, llm_client)
+            return
+
         # --- Stage 1: Parsing ---
         t0 = time.perf_counter()
         await publish_progress(JobStage.PARSING, 0.1, "Downloading and parsing PDF...")

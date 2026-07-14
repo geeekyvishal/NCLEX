@@ -7,7 +7,6 @@ import {
   generatorParameters,
   createEmptyCard,
   Card as FSRSCard,
-  Rating as FSRSRating,
   State as FSRSState,
   RecordLogItem,
 } from "ts-fsrs";
