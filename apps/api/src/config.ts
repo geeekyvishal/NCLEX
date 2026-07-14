@@ -2,7 +2,12 @@
  * Environment configuration, parsed and validated once at boot.
  * Every module reads config from here rather than touching process.env.
  */
+import { config as dotenvConfig } from "dotenv";
 import { z } from "zod";
+
+// Load .env from the workspace root in development.
+// In production env vars are injected directly so this is a no-op.
+dotenvConfig({ path: new URL("../../../.env", import.meta.url).pathname });
 
 const Env = z.object({
   NODE_ENV: z.string().default("development"),
