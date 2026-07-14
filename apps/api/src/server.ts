@@ -13,6 +13,7 @@ import websocket from "@fastify/websocket";
 import { config } from "./config.js";
 import { registerIdentityRoutes } from "./modules/identity/routes.js";
 import { registerContentRoutes } from "./modules/content/routes.js";
+import { registerStudyRoutes } from "./modules/study/routes.js";
 import { startLifecycleScheduler } from "./modules/content/lifecycle.js";
 
 export async function buildServer() {
@@ -28,6 +29,7 @@ export async function buildServer() {
 
   await app.register(registerIdentityRoutes);
   await app.register(registerContentRoutes);
+  await app.register(registerStudyRoutes);
 
   return app;
 }

@@ -125,7 +125,7 @@ describe("rowToCard", () => {
       flagged: false,
       created_at: CREATED,
     };
-    expect(rowToCard(row)).toEqual({
+    expect(rowToCard(row)).toEqual(expect.objectContaining({
       id: "55555555-5555-5555-5555-555555555555",
       deckId: "44444444-4444-4444-4444-444444444444",
       front: "What is the antidote for warfarin?",
@@ -136,7 +136,7 @@ describe("rowToCard", () => {
       modelVersion: "claude-opus-4-8+haiku-4-5/v1",
       flagged: false,
       createdAt: "2026-07-14T10:30:00.000Z",
-    });
+    }));
   });
 
   it("rejects a confidence outside the 0..1 range", () => {

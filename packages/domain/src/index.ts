@@ -56,6 +56,22 @@ export const Deck = z.object({
 });
 export type Deck = z.infer<typeof Deck>;
 
+export const Rating = z.union([
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+]);
+export type Rating = z.infer<typeof Rating>;
+
+export const CardState = z.union([
+  z.literal(0),
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+]);
+export type CardState = z.infer<typeof CardState>;
+
 /**
  * Every card stores its confidence and provenance (source chunk + model
  * version) so we can audit, surface low-confidence items, and regenerate.
@@ -72,6 +88,13 @@ export const Card = z.object({
   modelVersion: z.string(),
   flagged: z.boolean().default(false),
   createdAt: z.string().datetime(),
+  stability: z.number().default(0),
+  difficulty: z.number().default(0),
+  reps: z.number().int().default(0),
+  lapses: z.number().int().default(0),
+  state: CardState.default(0),
+  due: z.string().datetime().default(() => new Date().toISOString()),
+  lastReview: z.string().datetime().nullable().default(null),
 });
 export type Card = z.infer<typeof Card>;
 
@@ -147,3 +170,37 @@ export const VerifiedCard = DraftCard.extend({
 export type VerifiedCard = z.infer<typeof VerifiedCard>;
 
 export const MODEL_VERSION = "claude-opus-4-8+haiku-4-5/v1";
+
+// ----------------------------------------------------------------------------
+// Spaced Repetition (FSRS) & Review models
+// ----------------------------------------------------------------------------
+
+export const FsrsParams = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  weights: z.array(z.number()),
+  requestRetention: z.number().default(0.9),
+  createdAt: z.string().datetime(),
+});
+export type FsrsParams = z.infer<typeof FsrsParams>;
+
+export const Review = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  cardId: z.string().uuid(),
+  rating: Rating,
+  stability: z.number(),
+  difficulty: z.number(),
+  elapsedDays: z.number(),
+  scheduledDays: z.number(),
+  state: CardState,
+  createdAt: z.string().datetime(),
+});
+export type Review = z.infer<typeof Review>;
+
+/**
+ * A element in the due queue represents a card that is due for review,
+ * including its standard properties and FSRS scheduling state.
+ */
+export const DueQueueElement = Card;
+export type DueQueueElement = z.infer<typeof DueQueueElement>;
