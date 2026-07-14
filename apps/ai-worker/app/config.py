@@ -3,6 +3,23 @@
 All runtime configuration is read from the environment once at import time and
 exposed through a single frozen `Settings` instance.
 Keeping this in one module gives every stage a single, testable seam for config.
+
+LLM provider selection
+-----------------------
+Set `LLM_PROVIDER` to one of:
+  gemini      (default) - Google Gemini via OpenAI-compatible API
+  openrouter            - OpenRouter.ai (Claude, GPT-4, Gemini, …)
+  anthropic             - Anthropic direct OpenAI-compatible API
+
+Then set the matching API key:
+  GEMINI_API_KEY        for gemini
+  OPENROUTER_API_KEY    for openrouter
+  ANTHROPIC_API_KEY     for anthropic
+
+Model names must match the provider's naming convention:
+  gemini      -> gemini-2.0-flash, gemini-2.5-pro, …
+  openrouter  -> anthropic/claude-opus-4-5, google/gemini-2.0-flash, …
+  anthropic   -> claude-opus-4-5, claude-3-haiku-20240307, …
 """
 from __future__ import annotations
 
@@ -27,12 +44,27 @@ def _get(name: str, default: str | None = None) -> str | None:
 class Settings:
     """Immutable snapshot of the worker's environment configuration."""
 
-    # --- Anthropic / models ---
+    # --- LLM provider selection ---
+    # Valid values: "gemini" (default), "openrouter", "anthropic"
+    llm_provider: str = field(default_factory=lambda: _get("LLM_PROVIDER", "gemini"))
+
+    # --- API keys (one per provider) ---
+    gemini_api_key: str | None = field(default_factory=lambda: _get("GEMINI_API_KEY"))
+    openrouter_api_key: str | None = field(default_factory=lambda: _get("OPENROUTER_API_KEY"))
+    # Kept for backwards-compat and for the "anthropic" provider mode.
     anthropic_api_key: str | None = field(default_factory=lambda: _get("ANTHROPIC_API_KEY"))
+
+    # --- OpenAI embeddings (optional, for vector search) ---
     openai_api_key: str | None = field(default_factory=lambda: _get("OPENAI_API_KEY"))
-    generation_model: str = field(default_factory=lambda: _get("GENERATION_MODEL", "claude-opus-4-8"))
+
+    # --- Model tiers ---
+    # "Heavy" model for card generation and adversarial verification.
+    generation_model: str = field(
+        default_factory=lambda: _get("GENERATION_MODEL", "gemini-2.0-flash")
+    )
+    # "Cheap" model for high-volume classification tasks (dedup tagging, etc.).
     classify_model: str = field(
-        default_factory=lambda: _get("CLASSIFY_MODEL", "claude-haiku-4-5-20251001")
+        default_factory=lambda: _get("CLASSIFY_MODEL", "gemini-2.0-flash")
     )
 
     # --- Data stores ---

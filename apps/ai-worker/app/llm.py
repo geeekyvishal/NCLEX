@@ -1,16 +1,25 @@
-"""Thin Anthropic client wrapper.
+"""Provider-agnostic LLM client.
 
-Every Claude call in the pipeline goes through this module so that:
+Every LLM call in the pipeline goes through this module so that:
   - tests can mock a single, small surface (`LLMClient.complete` / `.complete_json`);
-  - the exact Anthropic SDK call lives in one place and is easy to adjust;
+  - the provider-specific wiring lives in one place and is easy to swap;
   - timeouts and a single retry are applied uniformly and defensively.
 
-The pipeline uses two models (see `04_ARCHITECTURE.md` section 5, "Model tiering"):
-  - GENERATION_MODEL (claude-opus-4-8) for generation and verification;
-  - CLASSIFY_MODEL  (claude-haiku-4-5-20251001) for cheap high-volume classification.
+Provider selection is driven by the `LLM_PROVIDER` env var (default: "gemini"):
 
-The call is deliberately minimal (model, max_tokens, system, messages) so it
-stays compatible across Anthropic SDK revisions.
+  gemini      - Google Gemini via its OpenAI-compatible endpoint.
+                Set GEMINI_API_KEY.
+  openrouter  - OpenRouter.ai (supports Claude, GPT-4, Gemini, etc.).
+                Set OPENROUTER_API_KEY and pick any model slug they support.
+  anthropic   - Anthropic's direct OpenAI-compatible endpoint.
+                Set ANTHROPIC_API_KEY.
+
+The pipeline uses two model tiers (see `04_ARCHITECTURE.md` section 5):
+  - GENERATION_MODEL for card generation and verification  (default: gemini-2.0-flash)
+  - CLASSIFY_MODEL   for cheap high-volume classification  (default: gemini-2.0-flash)
+
+All three providers expose the standard OpenAI Chat Completions interface, so
+the `openai` Python SDK works with all of them unchanged.
 """
 from __future__ import annotations
 
@@ -24,16 +33,38 @@ from .config import settings
 
 logger = logging.getLogger(__name__)
 
+# Provider → (base_url, api_key_attr, extra_headers)
+_PROVIDER_CONFIG: dict[str, tuple[str, str, dict[str, str]]] = {
+    "gemini": (
+        "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "gemini_api_key",
+        {},
+    ),
+    "openrouter": (
+        "https://openrouter.ai/api/v1",
+        "openrouter_api_key",
+        {
+            "HTTP-Referer": "https://github.com/geeekyvishal/NCLEX",
+            "X-Title": "NCLEX Flashcard Platform",
+        },
+    ),
+    "anthropic": (
+        "https://api.anthropic.com/v1",
+        "anthropic_api_key",
+        {"anthropic-version": "2023-06-01"},
+    ),
+}
+
 
 class LLMError(RuntimeError):
-    """Raised when a Claude call fails after the retry budget is exhausted."""
+    """Raised when an LLM call fails after the retry budget is exhausted."""
 
 
 class LLMClient:
-    """Wraps the Anthropic Messages API behind `complete` / `complete_json`.
+    """Wraps an OpenAI-compatible Chat Completions endpoint.
 
     Construction is lazy: the underlying SDK client is only built on first use,
-    so importing this module (and the pipeline) never requires an API key.
+    so importing this module never requires an API key.
     Tests substitute a fake client via the `client` argument or by monkeypatching
     `complete` / `complete_json`.
     """
@@ -43,15 +74,33 @@ class LLMClient:
 
     def _ensure_client(self) -> Any:
         if self._client is None:
-            # Imported lazily so the module imports without the anthropic package
-            # or an API key present (needed for offline unit tests).
-            import anthropic
+            from openai import OpenAI  # lazy import - not needed for tests
 
-            self._client = anthropic.Anthropic(
-                api_key=settings.anthropic_api_key,
+            provider = (settings.llm_provider or "gemini").lower()
+            if provider not in _PROVIDER_CONFIG:
+                raise LLMError(
+                    f"Unknown LLM_PROVIDER '{provider}'. "
+                    f"Valid values: {', '.join(_PROVIDER_CONFIG)}"
+                )
+
+            base_url, key_attr, default_headers = _PROVIDER_CONFIG[provider]
+            api_key = getattr(settings, key_attr, None)
+
+            if not api_key:
+                raise LLMError(
+                    f"LLM_PROVIDER is '{provider}' but the required API key "
+                    f"(settings.{key_attr}) is not set."
+                )
+
+            self._client = OpenAI(
+                api_key=api_key,
+                base_url=base_url,
+                default_headers=default_headers if default_headers else None,
                 timeout=settings.llm_timeout_seconds,
                 max_retries=0,  # We manage retries ourselves for uniform behavior.
             )
+            logger.info("LLM client initialised for provider '%s'", provider)
+
         return self._client
 
     def complete(
@@ -62,23 +111,25 @@ class LLMClient:
         *,
         max_tokens: int = 2048,
     ) -> str:
-        """Return the concatenated text of Claude's response as a plain string.
+        """Return the model's response as a plain string.
 
         Applies one retry on failure. The call is isolated here so the exact
-        Messages API parameters can be adjusted without touching the pipeline.
+        Chat Completions parameters can be adjusted without touching the pipeline.
         """
         client = self._ensure_client()
         last_error: Exception | None = None
 
         for attempt in range(2):  # initial try + one retry
             try:
-                message = client.messages.create(
+                response = client.chat.completions.create(
                     model=model,
                     max_tokens=max_tokens,
-                    system=system,
-                    messages=[{"role": "user", "content": user}],
+                    messages=[
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
                 )
-                return _extract_text(message)
+                return _extract_text(response)
             except Exception as exc:  # noqa: BLE001 - normalize to LLMError below
                 last_error = exc
                 logger.warning(
@@ -90,7 +141,7 @@ class LLMClient:
                 if attempt == 0:
                     time.sleep(0.5)  # brief backoff before the single retry
 
-        raise LLMError(f"Claude call failed after retry: {last_error}") from last_error
+        raise LLMError(f"LLM call failed after retry: {last_error}") from last_error
 
     def complete_json(
         self,
@@ -109,19 +160,17 @@ class LLMClient:
         return _parse_json(raw)
 
 
-def _extract_text(message: Any) -> str:
-    """Join all text blocks of an Anthropic Messages response into one string."""
-    content = getattr(message, "content", None)
-    if content is None:
+def _extract_text(response: Any) -> str:
+    """Extract text from an OpenAI-compatible Chat Completions response."""
+    try:
+        return response.choices[0].message.content or ""
+    except (AttributeError, IndexError):
+        # Fallback for dict-style responses (some proxy providers)
+        if isinstance(response, dict):
+            choices = response.get("choices", [])
+            if choices:
+                return choices[0].get("message", {}).get("content", "")
         return ""
-    parts: list[str] = []
-    for block in content:
-        text = getattr(block, "text", None)
-        if text is None and isinstance(block, dict):
-            text = block.get("text")
-        if text:
-            parts.append(text)
-    return "".join(parts)
 
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
