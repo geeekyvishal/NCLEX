@@ -1,6 +1,7 @@
 {
   "name": "nclex-app",
   "private": true,
+  "type": "module",
   "version": "0.1.0",
   "description": "NCLEX AI flashcard and Next-Gen practice app - backend monorepo",
   "workspaces": [
@@ -18,5 +19,9 @@
     "lint": "npm --workspace apps/api run lint",
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "typescript-eslint": "^8.64.0"
   }
 }

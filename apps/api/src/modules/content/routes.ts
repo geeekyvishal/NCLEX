@@ -1,10 +1,18 @@
-/**
- * Content module routes - STUB.
- * The Content agent replaces this with PDF upload, deck/card endpoints,
- * generation-job enqueue, and the WebSocket progress relay.
- */
 import type { FastifyInstance } from "fastify";
+import { authGuard } from "../identity/routes.js";
+import {
+  createDeckHandler,
+  listDecksHandler,
+  getDeckHandler,
+  flagCardHandler,
+} from "./decks.controller.js";
+import { registerProgressSocket } from "./progress.ws.js";
 
-export async function registerContentRoutes(_app: FastifyInstance) {
-  // implemented by the Content agent
+export async function registerContentRoutes(app: FastifyInstance) {
+  app.post("/api/decks", { preHandler: [authGuard] }, createDeckHandler);
+  app.get("/api/decks", { preHandler: [authGuard] }, listDecksHandler);
+  app.get("/api/decks/:id", { preHandler: [authGuard] }, getDeckHandler);
+  app.post("/api/cards/:id/flag", { preHandler: [authGuard] }, flagCardHandler);
+
+  await registerProgressSocket(app);
 }

@@ -18,6 +18,14 @@ export const cards = {
     return rows.map(rowToCard);
   },
 
+  async findById(cardId: string): Promise<Card | null> {
+    const { rows } = await query<CardRow>(
+      `SELECT ${COLUMNS} FROM cards WHERE id = $1`,
+      [cardId],
+    );
+    return rows.length > 0 ? rowToCard(rows[0]) : null;
+  },
+
   /** Flag a card for regeneration (feeds the flag-and-fix loop). */
   async flag(cardId: string): Promise<void> {
     await query(`UPDATE cards SET flagged = TRUE WHERE id = $1`, [cardId]);

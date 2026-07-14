@@ -6,7 +6,7 @@
  * run ordinary commands, so `createSubscriber` mints a dedicated connection for
  * each subscriber and the caller is responsible for closing it.
  */
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 import { config } from "../config.js";
 
 let redisSingleton: Redis | null = null;

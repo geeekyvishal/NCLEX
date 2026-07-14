@@ -12,7 +12,7 @@
  * consuming modules are unaffected.
  */
 import type pg from "pg";
-import type Redis from "ioredis";
+import { Redis } from "ioredis";
 import { getPool } from "./db.js";
 import { getRedis } from "./redis.js";
 import { putObject } from "./storage.js";
