@@ -22,6 +22,7 @@ import {
   getRedis,
   MAGIC_TOKEN_TTL_SECONDS,
 } from "./tokens.js";
+import { sendEmail } from "./email.js";
 
 const MagicLinkBody = z.object({
   email: z.string().email(),
@@ -48,11 +49,23 @@ export function registerMagicLinkRoutes(app: FastifyInstance): void {
 
     const token = await createMagicToken(getRedis(), { userId: user.id, email });
 
-    // In a real deployment this token would be emailed as a link. Here we log
-    // it and, outside production, return it so the flow is testable.
+    const verificationUrl = `${config.WEB_URL}/auth/verify?token=${token}`;
+
+    // Send the magic link email
+    await sendEmail({
+      to: email,
+      subject: "Your NCLEX App Magic Link",
+      html: `
+        <p>Hello,</p>
+        <p>Use the link below to sign in and save your decks:</p>
+        <p><a href="${verificationUrl}">${verificationUrl}</a></p>
+        <p>This link is valid for 15 minutes.</p>
+      `,
+    });
+
     request.log.info(
       { userId: user.id, email, ttlSeconds: MAGIC_TOKEN_TTL_SECONDS },
-      "magic-link token issued",
+      "magic-link token issued and email sent",
     );
 
     const response: { sent: true; token?: string } = { sent: true };

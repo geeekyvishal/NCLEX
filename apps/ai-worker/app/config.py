@@ -29,6 +29,7 @@ class Settings:
 
     # --- Anthropic / models ---
     anthropic_api_key: str | None = field(default_factory=lambda: _get("ANTHROPIC_API_KEY"))
+    openai_api_key: str | None = field(default_factory=lambda: _get("OPENAI_API_KEY"))
     generation_model: str = field(default_factory=lambda: _get("GENERATION_MODEL", "claude-opus-4-8"))
     classify_model: str = field(
         default_factory=lambda: _get("CLASSIFY_MODEL", "claude-haiku-4-5-20251001")

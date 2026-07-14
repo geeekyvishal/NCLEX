@@ -15,6 +15,10 @@ const Env = z.object({
   S3_BUCKET: z.string(),
   S3_ACCESS_KEY: z.string(),
   S3_SECRET_KEY: z.string(),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().default("NCLEX <noreply@nclex.local>"),
+  WEB_URL: z.string().default("http://localhost:3000"),
+  SOURCE_RETENTION_DAYS: z.coerce.number().default(7),
 });
 
 export const config = Env.parse(process.env);

@@ -55,6 +55,16 @@ async def _persist_tx(
 ) -> None:
     """Execute the persistence statements inside a transaction."""
     async with conn.transaction():
+        # 0. Delete existing cards and chunks to make persist idempotent
+        await conn.execute(
+            "DELETE FROM cards WHERE deck_id = $1",
+            uuid.UUID(deck_id),
+        )
+        await conn.execute(
+            "DELETE FROM source_chunks WHERE source_id = $1",
+            uuid.UUID(source_id),
+        )
+
         # 1. Insert source chunks
         for chunk, emb in zip(chunks, embeddings):
             emb_str = f"[{','.join(str(x) for x in emb)}]"

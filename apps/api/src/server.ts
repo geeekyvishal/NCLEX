@@ -13,6 +13,7 @@ import websocket from "@fastify/websocket";
 import { config } from "./config.js";
 import { registerIdentityRoutes } from "./modules/identity/routes.js";
 import { registerContentRoutes } from "./modules/content/routes.js";
+import { startLifecycleScheduler } from "./modules/content/lifecycle.js";
 
 export async function buildServer() {
   const app = Fastify({
@@ -35,6 +36,7 @@ async function main() {
   const app = await buildServer();
   try {
     await app.listen({ port: config.API_PORT, host: "0.0.0.0" });
+    startLifecycleScheduler(app.log);
   } catch (err) {
     app.log.error(err);
     process.exit(1);

@@ -5,7 +5,7 @@
  * addresses buckets by path (`/bucket/key`) rather than by virtual host, which
  * MinIO does not serve by default.
  */
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { config } from "../config.js";
 
 let s3Singleton: S3Client | null = null;
@@ -41,4 +41,14 @@ export async function putObject(
     }),
   );
   return key;
+}
+
+/** Delete an object from the configured bucket. */
+export async function deleteObject(key: string): Promise<void> {
+  await getS3().send(
+    new DeleteObjectCommand({
+      Bucket: config.S3_BUCKET,
+      Key: key,
+    }),
+  );
 }

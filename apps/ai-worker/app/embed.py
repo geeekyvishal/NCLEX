@@ -67,9 +67,67 @@ def _normalize(vec: list[float]) -> list[float]:
     return [v / norm for v in vec]
 
 
+class OpenAIEmbedder:
+    """Real embedder using the OpenAI Embeddings API.
+
+    Uses `text-embedding-3-small` by default and L2-normalizes the output.
+    """
+
+    def __init__(self, api_key: str | None = None, model: str = "text-embedding-3-small") -> None:
+        self.api_key = api_key or settings.openai_api_key
+        self.model = model
+
+    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        if not self.api_key:
+            raise ValueError("OpenAI API key is required for OpenAIEmbedder")
+        if not texts:
+            return []
+
+        import httpx
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "input": texts,
+            "model": self.model,
+        }
+        timeout = getattr(settings, "llm_timeout_seconds", 60.0)
+
+        last_exc: Exception | None = None
+        for attempt in range(2):
+            try:
+                with httpx.Client(timeout=timeout) as client:
+                    response = client.post(
+                        "https://api.openai.com/v1/embeddings",
+                        headers=headers,
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+
+                raw_embeddings = [
+                    item["embedding"]
+                    for item in sorted(data["data"], key=lambda x: x["index"])
+                ]
+                return [_normalize(emb) for emb in raw_embeddings]
+            except Exception as exc:
+                last_exc = exc
+                if attempt == 0:
+                    import time
+                    time.sleep(0.5)
+
+        raise RuntimeError(f"OpenAI embedding call failed after retry: {last_exc}") from last_exc
+
+
 # Default embedder used by the pipeline. Replace with a real provider by
 # constructing the pipeline with a different Embedder.
-default_embedder: Embedder = HashingEmbedder()
+default_embedder: Embedder
+if settings.openai_api_key:
+    default_embedder = OpenAIEmbedder()
+else:
+    default_embedder = HashingEmbedder()
 
 
 def embed_texts(texts: list[str], *, embedder: Embedder | None = None) -> list[list[float]]:

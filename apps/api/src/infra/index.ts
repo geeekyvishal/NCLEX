@@ -15,7 +15,7 @@ import type pg from "pg";
 import { Redis } from "ioredis";
 import { getPool } from "./db.js";
 import { getRedis } from "./redis.js";
-import { putObject } from "./storage.js";
+import { putObject, deleteObject } from "./storage.js";
 
 // --- Clients ---
 export const clients = {
@@ -30,6 +30,10 @@ export const clients = {
   /** Upload a buffer to object storage, returning the storage key. */
   async putObject(key: string, body: Buffer, contentType: string): Promise<string> {
     return putObject(key, body, contentType);
+  },
+  /** Delete an object from object storage. */
+  async deleteObject(key: string): Promise<void> {
+    return deleteObject(key);
   },
 };
 

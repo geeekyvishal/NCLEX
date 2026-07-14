@@ -1,0 +1,45 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 949 >>
+stream
+BT
+/F1 12 Tf
+72 750 Td
+(Critical Lab Values: Potassium \(K+\)) Tj
+0 -15 Td
+(Potassium is the primary intracellular cation, essential for maintaining electrical excitability in cardiac and neuromuscular cells.) Tj
+0 -15 Td
+(Normal Range:) Tj
+0 -15 Td
+(The normal serum potassium level is 3.5 to 5.0 mEq/L.) Tj
+0 -15 Td
+(Clinical Implications:) Tj
+0 -15 Td
+(1. Hypokalemia \(potassium < 3.5 mEq/L\) can cause muscle weakness, cardiac dysrhythmias \(U waves, flat T waves\), and increased risk of digoxin toxicity. Treatment includes oral or intravenous potassium replacement. Never give potassium IV push.) Tj
+0 -15 Td
+(2. Hyperkalemia \(potassium > 5.0 mEq/L\) can cause muscle twitching, flaccid paralysis, and life-threatening cardiac dysrhythmias \(tall peaked T waves, prolonged PR interval\). Treatment includes sodium polystyrene sulfonate \(Kayexalate\), insulin with dextrose, or calcium gluconate to stabilize the myocardium.) Tj
+0 -15 Td
+ET
+endstream
+endobj
+xref
+0 5
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000290 00000 n 
+trailer
+<< /Size 5 /Root 1 0 R >>
+startxref
+1290
+%%EOF

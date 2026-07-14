@@ -91,10 +91,20 @@ async def run_pipeline(
             message,
         )
 
+    import time
+    import json
+
+    start_time = time.perf_counter()
+    latencies = {}
+    counts = {}
+
     try:
         # --- Stage 1: Parsing ---
+        t0 = time.perf_counter()
         await publish_progress(JobStage.PARSING, 0.1, "Downloading and parsing PDF...")
         pages = parse(storage_key, store=store)
+        latencies["parsing_seconds"] = time.perf_counter() - t0
+        counts["page_count"] = len(pages)
 
         await db_conn.execute(
             "UPDATE sources SET page_count = $2 WHERE id = $1",
@@ -103,8 +113,11 @@ async def run_pipeline(
         )
 
         # --- Stage 2: Chunking ---
+        t0 = time.perf_counter()
         await publish_progress(JobStage.CHUNKING, 0.25, "Chunking document text...")
         chunks = chunk_pages(pages)
+        latencies["chunking_seconds"] = time.perf_counter() - t0
+        counts["chunk_count"] = len(chunks)
 
         if not chunks:
             await publish_progress(JobStage.DONE, 1.0, "No text chunks generated.")
@@ -112,22 +125,45 @@ async def run_pipeline(
                 "UPDATE decks SET status = 'ready', card_count = 0 WHERE id = $1",
                 uuid.UUID(deck_id),
             )
+            # Log metrics
+            total_seconds = time.perf_counter() - start_time
+            latencies["total_seconds"] = total_seconds
+            metrics = {
+                "job_id": job_id,
+                "deck_id": deck_id,
+                "source_id": source_id,
+                "latencies": latencies,
+                "counts": counts,
+                "rates": {
+                    "card_acceptance_rate": 0.0,
+                    "verification_rejection_rate": 0.0,
+                }
+            }
+            logger.info("Pipeline metrics: %s", json.dumps(metrics))
             return
 
         # --- Stage 3: Embedding, Dedup, and Tagging ---
+        t0 = time.perf_counter()
         chunk_texts = [c.text for c in chunks]
         embeddings = embed_texts(chunk_texts, embedder=embedder)
+        latencies["embedding_seconds"] = time.perf_counter() - t0
 
+        t0 = time.perf_counter()
         kept_chunks, kept_embeddings = dedup_chunks(chunks, embeddings)
         tag_chunks(kept_chunks)
+        latencies["dedup_and_tagging_seconds"] = time.perf_counter() - t0
+        counts["kept_chunks_count"] = len(kept_chunks)
 
         # --- Stage 4: Generating ---
+        t0 = time.perf_counter()
         await publish_progress(
             JobStage.GENERATING,
             0.4,
             f"Generating draft cards for {len(kept_chunks)} chunks...",
         )
         drafts = generate(kept_chunks, client=llm_client)
+        latencies["generating_seconds"] = time.perf_counter() - t0
+        counts["draft_card_count"] = len(drafts)
 
         if not drafts:
             await publish_progress(JobStage.DONE, 1.0, "No cards drafted.")
@@ -135,25 +171,50 @@ async def run_pipeline(
                 "UPDATE decks SET status = 'ready', card_count = 0 WHERE id = $1",
                 uuid.UUID(deck_id),
             )
+            # Log metrics
+            total_seconds = time.perf_counter() - start_time
+            latencies["total_seconds"] = total_seconds
+            metrics = {
+                "job_id": job_id,
+                "deck_id": deck_id,
+                "source_id": source_id,
+                "latencies": latencies,
+                "counts": counts,
+                "rates": {
+                    "card_acceptance_rate": 0.0,
+                    "verification_rejection_rate": 0.0,
+                }
+            }
+            logger.info("Pipeline metrics: %s", json.dumps(metrics))
             return
 
         # --- Stage 5: Verifying ---
+        t0 = time.perf_counter()
         await publish_progress(
             JobStage.VERIFYING,
             0.7,
             f"Verifying {len(drafts)} draft cards...",
         )
         verified = verify(drafts, kept_chunks, client=llm_client)
+        latencies["verifying_seconds"] = time.perf_counter() - t0
+        counts["verified_card_count"] = len(verified)
+
+        low_confidence_count = sum(1 for v in verified if v.confidence < 0.6)
+        counts["low_confidence_card_count"] = low_confidence_count
 
         # --- Stage 6: Ranking ---
+        t0 = time.perf_counter()
         await publish_progress(
             JobStage.RANKING,
             0.85,
             "Ranking and spreading cards by topic...",
         )
         kept_cards = rank(verified, target_count)
+        latencies["ranking_seconds"] = time.perf_counter() - t0
+        counts["kept_card_count"] = len(kept_cards)
 
         # --- Stage 7: Persisting ---
+        t0 = time.perf_counter()
         await publish_progress(
             JobStage.PERSISTING,
             0.95,
@@ -167,8 +228,25 @@ async def run_pipeline(
             cards=kept_cards,
             conn=db_conn,
         )
+        latencies["persisting_seconds"] = time.perf_counter() - t0
 
         await publish_progress(JobStage.DONE, 1.0, "Deck generation completed successfully.")
+
+        # Log metrics
+        total_seconds = time.perf_counter() - start_time
+        latencies["total_seconds"] = total_seconds
+        metrics = {
+            "job_id": job_id,
+            "deck_id": deck_id,
+            "source_id": source_id,
+            "latencies": latencies,
+            "counts": counts,
+            "rates": {
+                "card_acceptance_rate": len(kept_cards) / len(drafts) if drafts else 0.0,
+                "verification_rejection_rate": low_confidence_count / len(drafts) if drafts else 0.0,
+            }
+        }
+        logger.info("Pipeline metrics: %s", json.dumps(metrics))
 
     except Exception as exc:
         logger.exception("Pipeline failed for job %s", job_id)
